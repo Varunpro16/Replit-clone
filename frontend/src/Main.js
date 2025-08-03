@@ -1,0 +1,768 @@
+
+import React, { useState, useEffect } from "react";
+import FileTree from "./components/FileTree";
+import CodeEditor from "./components/CodeEditor";
+import Terminal from "./components/Terminal";
+import io from "socket.io-client";
+import { useLocation } from 'react-router-dom';
+import axios from 'axios';
+import "./App.css";
+import TerminalController from './components/TerminalController';
+import Output from './components/Output';
+import { 
+  Code, 
+  GitBranch, 
+  Settings 
+} from "lucide-react"
+
+
+const socket = io("http://localhost:5000");
+
+function Main() {
+
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileContent, setFileContent] = useState("");
+  const [currentPath, setCurrentPath] = useState("");
+  const location = useLocation();
+  
+  const { language, projectName, isNew } = location.state || {};
+
+  useEffect(() => {
+    if (language && projectName) {
+      initializeProject();
+    }
+  }, [language, projectName, isNew]);
+
+  const initializeProject = async () => {
+    try {
+
+      await axios.post('http://localhost:5000/api/podcreation', {
+          language,
+          projectName
+        });
+      if (isNew) {
+        // Create new project from template
+        await axios.post('http://localhost:5000/api/project/create', {
+          language,
+          projectName
+        });
+      }
+      
+      // Set the current path for the project
+      const projectPath = `editedversion/${language.toLowerCase()}/${projectName}`;
+      setCurrentPath(projectPath);
+    } catch (error) {
+      console.error('Error initializing project:', error);
+      alert('Error initializing project');
+    }
+  };
+
+  return (
+    <div className="modern-ide">
+      {/* Top Header */}
+      <div className="ide-header">
+        <div className="header-left">
+          <div className="logo">
+            <Code size={20} className="logo-icon" />
+            <span className="logo-text">IDE</span>
+          </div>
+          <div className="project-info">
+            <span className="project-name">{projectName}</span>
+            <span className="project-type">{language}</span>
+          </div>
+        </div>
+        <div className="header-right">
+          <button className="header-btn">
+            <GitBranch size={16} />
+            main
+          </button>
+          <button className="header-btn">
+            <Settings size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="ide-content">
+        {/* Left Sidebar - File Explorer */}
+        <div className="sidebar">
+          <FileTree
+            setSelectedFile={setSelectedFile}
+            setFileContent={setFileContent}
+            currentPath={currentPath}
+            language={language}
+            projectName={projectName}
+          />
+        </div>
+
+        {/* Center - Code Editor */}
+        <div className="main-editor">
+          <CodeEditor
+            selectedFile={selectedFile}
+            fileContent={fileContent}
+            setFileContent={setFileContent}
+            currentPath={currentPath}
+            onFileSave={() => setRefreshKey(prev => prev + 1)} // 👈
+          />
+        </div>
+
+        {/* Right Panel */}
+        <div className="right-panel">
+          {/* Output/Preview */}
+          <div className="output-section">
+            <Output projectName={projectName} refreshKey={refreshKey}/>
+          </div>
+          
+          {/* Terminal */}
+          <div className="terminal-section">
+            <TerminalController socket={socket} projectPath={currentPath} />
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .modern-ide {
+          height: 100vh;
+          background: #0d1117;
+          color: #e6edf3;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .ide-header {
+          height: 48px;
+          background: #010409;
+          border-bottom: 1px solid #21262d;
+          display: flex;
+          align-items: center;
+          padding: 0 16px;
+          justify-content: space-between;
+          flex-shrink: 0;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 600;
+        }
+
+        .logo-icon {
+          color: #58a6ff;
+        }
+
+        .project-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .project-name {
+          font-weight: 600;
+          color: #f0f6fc;
+        }
+
+        .project-type {
+          font-size: 12px;
+          color: #7d8590;
+          background: #21262d;
+          padding: 2px 8px;
+          border-radius: 12px;
+        }
+
+        .header-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .header-btn {
+          background: transparent;
+          border: 1px solid #30363d;
+          color: #f0f6fc;
+          padding: 6px 12px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .header-btn:hover {
+          background: #21262d;
+          border-color: #58a6ff;
+        }
+
+        .ide-content {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+        }
+
+        .sidebar {
+          width: 280px;
+          background: #0d1117;
+          border-right: 1px solid #21262d;
+          flex-shrink: 0;
+        }
+
+        .main-editor {
+          flex: 1;
+          background: #0d1117;
+          border-right: 1px solid #21262d;
+        }
+
+        .right-panel {
+          width: 600px;
+          display: flex;
+          flex-direction: column;
+          background: #0d1117;
+        }
+
+        .output-section {
+          flex: 1;
+          border-bottom: 1px solid #21262d;
+        }
+
+        .terminal-section {
+          height: 400px;
+        }
+
+        .panel-header {
+          height: 40px;
+          background: #161b22;
+          border-bottom: 1px solid #21262d;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          flex-shrink: 0;
+        }
+
+        .panel-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #f0f6fc;
+        }
+
+        .panel-icon {
+          color: #7d8590;
+        }
+
+        .panel-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .panel-action-btn {
+          background: transparent;
+          border: none;
+          color: #7d8590;
+          padding: 4px;
+          border-radius: 3px;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+        }
+
+        .panel-action-btn:hover {
+          background: #21262d;
+          color: #f0f6fc;
+        }
+
+        /* File Tree Styles */
+        .file-tree-panel {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .file-tree-content {
+          flex: 1;
+          overflow-y: auto;
+          padding: 8px 0;
+        }
+
+        .tree-item {
+          display: flex;
+          align-items: center;
+          height: 28px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          border-radius: 4px;
+          margin: 1px 8px;
+        }
+
+        .tree-item:hover {
+          background: #21262d;
+        }
+
+        .tree-item-content {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .tree-icon {
+          color: #7d8590;
+          flex-shrink: 0;
+        }
+
+        .tree-item-name {
+          font-size: 13px;
+          color: #e6edf3;
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* Code Editor Styles */
+        .code-editor-panel {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .editor-tabs {
+          display: flex;
+          align-items: center;
+          flex: 1;
+          overflow-x: auto;
+        }
+
+        .editor-tab {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          background: #161b22;
+          border-right: 1px solid #21262d;
+          cursor: pointer;
+          font-size: 13px;
+          color: #7d8590;
+          border: none;
+          height: 40px;
+          min-width: 120px;
+          justify-content: space-between;
+        }
+
+        .editor-tab.active {
+          background: #0d1117;
+          color: #f0f6fc;
+        }
+
+        .tab-icon {
+          color: #7d8590;
+        }
+
+        .tab-name {
+          flex: 1;
+          text-align: left;
+        }
+
+        .tab-close {
+          background: transparent;
+          border: none;
+          color: #7d8590;
+          cursor: pointer;
+          padding: 2px;
+          border-radius: 2px;
+          opacity: 0;
+          transition: all 0.2s;
+        }
+
+        .editor-tab:hover .tab-close {
+          opacity: 1;
+        }
+
+        .tab-close:hover {
+          background: #21262d;
+          color: #f0f6fc;
+        }
+
+        .editor-content {
+          flex: 1;
+          display: flex;
+          background: #0d1117;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        }
+
+        .line-numbers {
+          width: 50px;
+          background: #0d1117;
+          border-right: 1px solid #21262d;
+          padding: 16px 8px;
+          font-size: 12px;
+          color: #7d8590;
+          text-align: right;
+          line-height: 20px;
+          user-select: none;
+        }
+
+        .code-textarea {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #e6edf3;
+          font-size: 14px;
+          font-family: inherit;
+          line-height: 20px;
+          padding: 16px;
+          resize: none;
+          outline: none;
+          white-space: pre;
+          overflow-wrap: normal;
+          overflow-x: scroll;
+        }
+
+        .code-textarea::placeholder {
+          color: #7d8590;
+        }
+
+        /* Output Panel Styles */
+        .output-panel {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .output-tabs {
+          display: flex;
+          align-items: center;
+          gap: 0;
+        }
+
+        .output-tab {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 12px;
+          background: transparent;
+          border: none;
+          color: #7d8590;
+          font-size: 13px;
+          cursor: pointer;
+          border-bottom: 2px solid transparent;
+          transition: all 0.2s;
+        }
+
+        .output-tab.active {
+          color: #f0f6fc;
+          border-bottom-color: #58a6ff;
+        }
+
+        .run-button {
+          background: #238636;
+          border: none;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: background-color 0.2s;
+        }
+
+        .run-button:hover {
+          background: #2ea043;
+        }
+
+        .output-content {
+          flex: 1;
+          background: #0d1117;
+        }
+
+        .browser-preview {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .browser-bar {
+          height: 32px;
+          background: #161b22;
+          border-bottom: 1px solid #21262d;
+          display: flex;
+          align-items: center;
+          padding: 0 12px;
+          gap: 12px;
+        }
+
+        .browser-controls {
+          display: flex;
+          gap: 6px;
+        }
+
+        .browser-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .red { background: #ff5f56; }
+        .yellow { background: #ffbd2e; }
+        .green { background: #27ca3f; }
+
+        .browser-url {
+          flex: 1;
+          background: #21262d;
+          border: 1px solid #30363d;
+          border-radius: 4px;
+          padding: 4px 8px;
+          font-size: 11px;
+          color: #7d8590;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .browser-refresh {
+          background: transparent;
+          border: none;
+          color: #7d8590;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 3px;
+        }
+
+        .browser-refresh:hover {
+          background: #21262d;
+          color: #f0f6fc;
+        }
+
+        .preview-iframe {
+          flex: 1;
+          border: none;
+          background: white;
+        }
+
+        .console-output {
+          padding: 12px;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          font-size: 12px;
+          line-height: 18px;
+        }
+
+        .console-line {
+          color: #7d8590;
+          margin-bottom: 4px;
+        }
+
+        /* Terminal Styles */
+        .terminal-panel {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .terminal-content {
+          flex: 1;
+          background: #0d1117;
+          padding: 12px;
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .terminal-output {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .terminal-line {
+          color: #e6edf3;
+          font-size: 13px;
+          line-height: 18px;
+          margin-bottom: 2px;
+        }
+
+        .terminal-input-line {
+          display: flex;
+          align-items: center;
+          margin-top: 8px;
+        }
+
+        .terminal-prompt {
+          color: #58a6ff;
+          font-weight: 600;
+          margin-right: 8px;
+        }
+
+        .terminal-input {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #e6edf3;
+          font-family: inherit;
+          font-size: 13px;
+          outline: none;
+        }
+
+        .terminal-input::placeholder {
+          color: #7d8590;
+        }
+
+        /* Scrollbar Styles */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: #0d1117;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: #30363d;
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: #484f58;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+          .sidebar {
+            width: 240px;
+          }
+          .right-panel {
+            width: 350px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .sidebar {
+            width: 200px;
+          }
+          .right-panel {
+            width: 300px;
+          }
+          .project-info {
+            display: none;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default Main;
+
+
+
+
+
+
+
+// import React, { useState, useEffect } from "react";
+// import FileTree from "./components/FileTree";
+// import CodeEditor from "./components/CodeEditor";
+// import Terminal from "./components/Terminal";
+// import io from "socket.io-client";
+// import { useLocation } from 'react-router-dom';
+// import axios from 'axios';
+// import "./App.css";
+// import TerminalController from './components/TerminalController';
+// import Output from './components/Output';
+
+
+// const socket = io("http://localhost:5000");
+
+// function Main() {
+//   const [selectedFile, setSelectedFile] = useState(null);
+//   const [fileContent, setFileContent] = useState("");
+//   const [currentPath, setCurrentPath] = useState("");
+//   const location = useLocation();
+  
+//   const { language, projectName, isNew } = location.state || {};
+
+//   useEffect(() => {
+//     if (language && projectName) {
+//       initializeProject();
+//     }
+//   }, [language, projectName, isNew]);
+
+//   const initializeProject = async () => {
+//     try {
+
+//       await axios.post('http://localhost:5000/api/podcreation', {
+//           language,
+//           projectName
+//         });
+//       if (isNew) {
+//         // Create new project from template
+//         await axios.post('http://localhost:5000/api/project/create', {
+//           language,
+//           projectName
+//         });
+//       }
+      
+//       // Set the current path for the project
+//       const projectPath = `editedversion/${language.toLowerCase()}/${projectName}`;
+//       setCurrentPath(projectPath);
+//     } catch (error) {
+//       console.error('Error initializing project:', error);
+//       alert('Error initializing project');
+//     }
+//   };
+
+//   return (
+//     <div className="app-container" style={{ display: "flex", height: "100vh" }}>
+//       <div style={{ width: "20%", borderRight: "1px solid #ccc" }}>
+//         <div className="project-info" style={{ padding: "10px", borderBottom: "1px solid #ccc" }}>
+//           <h3>{projectName}</h3>
+//           <small>{language} Project</small>
+//         </div>
+//         <FileTree
+//           setSelectedFile={setSelectedFile}
+//           setFileContent={setFileContent}
+//           currentPath={currentPath}
+//           language={language}
+//           projectName={projectName}
+//         />
+//       </div>
+//       <div style={{ width: "50%", borderRight: "1px solid #ccc" }}>
+//         <CodeEditor
+//           selectedFile={selectedFile}
+//           fileContent={fileContent}
+//           setFileContent={setFileContent}
+//           currentPath={currentPath}
+//         />
+//       </div>
+//       <div style={{ width: "30%", display: "flex", flexDirection: "column", height: "100%" }}>
+//         <div style={{ flex: "0 0 50%", borderBottom: "1px solid #ccc", padding: "10px" }}>
+//           {/* Replace this with your actual new component */}
+//           <Output projectName={projectName}/>
+//         </div>
+//         <div style={{ flex: "1 1 50%", overflow: "hidden" }}>
+//           <TerminalController socket={socket} projectPath={currentPath} />
+//           {/* <TerminalCheck socket={socket}/> */}
+//         </div>
+//       </div>
+
+//     </div>
+//   );
+// }
+
+// export default Main;
+

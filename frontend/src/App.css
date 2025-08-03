@@ -1,0 +1,35 @@
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 20%;
+  background-color: #1e1e1e;
+  color: #ccc;
+  overflow-y: auto;
+}
+
+.editor {
+  width: 80%;
+  background-color: #1e1e1e;
+  color: white;
+}
+
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  padding: 10px;
+  background-color: #2d2d2d;
+  display: flex;
+  justify-content: space-between;
+  color: white;
+}
+
+
