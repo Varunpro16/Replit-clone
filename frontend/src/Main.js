@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import FileTree from "./components/FileTree";
 import CodeEditor from "./components/CodeEditor";
@@ -12,21 +11,30 @@ import Output from './components/Output';
 import { 
   Code, 
   GitBranch, 
-  Settings 
+  Settings,
+  Terminal as TerminalIcon,
+  Database,
+  Monitor
 } from "lucide-react"
+import XTerminal from "./components/XTerminal";
+import MySQLTerminal from "./components/DBTerminal"
+
 
 
 const socket = io("http://localhost:5000");
 
 function Main() {
-
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState("");
   const [currentPath, setCurrentPath] = useState("");
+  const [activeRightTab, setActiveRightTab] = useState("terminal"); // New state for active tab
   const location = useLocation();
+
   
-  const { language, projectName, isNew } = location.state || {};
+  const { userId,language, projectName, isNew } = location.state || {};
+  console.log(location.state);
+  
 
   useEffect(() => {
     if (language && projectName) {
@@ -36,27 +44,68 @@ function Main() {
 
   const initializeProject = async () => {
     try {
-
-      await axios.post('http://localhost:5000/api/podcreation', {
-          language,
-          projectName
-        });
+ 
       if (isNew) {
         // Create new project from template
-        await axios.post('http://localhost:5000/api/project/create', {
+        console.log("calling api ",userId);
+        
+        const res = await axios.post('http://localhost:5000/api/project/create', {
           language,
-          projectName
+          projectName,
+          userId
         });
+        
       }
       
       // Set the current path for the project
-      const projectPath = `editedversion/${language.toLowerCase()}/${projectName}`;
+      const projectPath = `editedversion/${userId}/${projectName}`;
       setCurrentPath(projectPath);
     } catch (error) {
       console.error('Error initializing project:', error);
       alert('Error initializing project');
     }
   };
+
+  // Function to render the active tab content
+  // const renderActiveTabContent = () => {
+  //   switch (activeRightTab) {
+  //     case "terminal":
+  //       return <XTerminal socket={socket} />;
+  //     case "sqlterminal":
+  //       return <MySQLTerminal socket={socket} userId={userId} projectName={projectName} />;
+  //     case "output":
+  //       return <Output userId={userId} projectName={projectName} refreshKey={refreshKey} />;
+  //     default:
+  //       return <XTerminal socket={socket} />;
+  //   }
+  // };
+  const renderActiveTabContent = () => {
+  return (
+    <div className="tab-content-container">
+      {/* Always render all terminals, but hide inactive ones */}
+      <div 
+        className="terminal-container" 
+        style={{ display: activeRightTab === "terminal" ? "block" : "none" }}
+      >
+        <XTerminal socket={socket} userId={userId} projectName={projectName}  />;
+      </div>
+      
+      <div 
+        className="terminal-container" 
+        style={{ display: activeRightTab === "sqlterminal" ? "block" : "none" }}
+      >
+        <MySQLTerminal socket={socket} userId={userId} projectName={projectName} />
+      </div>
+      
+      <div 
+        className="terminal-container" 
+        style={{ display: activeRightTab === "output" ? "block" : "none" }}
+      >
+         <Output userId={userId} projectName={projectName} refreshKey={refreshKey} />
+      </div>
+    </div>
+  );
+};
 
   return (
     <div className="modern-ide">
@@ -93,30 +142,54 @@ function Main() {
             currentPath={currentPath}
             language={language}
             projectName={projectName}
+            userId={userId}
           />
         </div>
 
         {/* Center - Code Editor */}
         <div className="main-editor">
           <CodeEditor
+            userId={userId}
             selectedFile={selectedFile}
             fileContent={fileContent}
             setFileContent={setFileContent}
             currentPath={currentPath}
-            onFileSave={() => setRefreshKey(prev => prev + 1)} // 👈
+            onFileSave={() => setRefreshKey(prev => prev + 1)}
           />
         </div>
 
-        {/* Right Panel */}
+        {/* Right Panel - Tabbed Interface */}
         <div className="right-panel">
-          {/* Output/Preview */}
-          <div className="output-section">
-            <Output projectName={projectName} refreshKey={refreshKey}/>
+          {/* Tab Navigation */}
+          <div className="panel-header">
+            <div className="panel-tabs">
+              <button
+                className={`panel-tab ${activeRightTab === "terminal" ? "active" : ""}`}
+                onClick={() => setActiveRightTab("terminal")}
+              >
+                <TerminalIcon size={14} />
+                Terminal
+              </button>
+              <button
+                className={`panel-tab ${activeRightTab === "sqlterminal" ? "active" : ""}`}
+                onClick={() => setActiveRightTab("sqlterminal")}
+              >
+                <Database size={14} />
+                SQL Terminal
+              </button>
+              <button
+                className={`panel-tab ${activeRightTab === "output" ? "active" : ""}`}
+                onClick={() => setActiveRightTab("output")}
+              >
+                <Monitor size={14} />
+                Output
+              </button>
+            </div>
           </div>
-          
-          {/* Terminal */}
-          <div className="terminal-section">
-            <TerminalController socket={socket} projectPath={currentPath} />
+
+          {/* Tab Content */}
+          <div className="panel-content">
+            {renderActiveTabContent()}
           </div>
         </div>
       </div>
@@ -230,24 +303,54 @@ function Main() {
           background: #0d1117;
         }
 
-        .output-section {
-          flex: 1;
-          border-bottom: 1px solid #21262d;
-        }
-
-        .terminal-section {
-          height: 400px;
-        }
-
         .panel-header {
-          height: 40px;
+          height: 48px;
           background: #161b22;
           border-bottom: 1px solid #21262d;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 0 12px;
+          padding: 0;
           flex-shrink: 0;
+        }
+
+        .panel-tabs {
+          display: flex;
+          align-items: center;
+          height: 100%;
+          width: 100%;
+        }
+
+        .panel-tab {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 16px;
+          height: 100%;
+          background: transparent;
+          border: none;
+          color: #7d8590;
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          border-bottom: 2px solid transparent;
+          white-space: nowrap;
+        }
+
+        .panel-tab:hover {
+          background: #21262d;
+          color: #e6edf3;
+        }
+
+        .panel-tab.active {
+          color: #58a6ff;
+          border-bottom-color: #58a6ff;
+          background: #0d1117;
+        }
+
+        .panel-content {
+          flex: 1;
+          overflow: hidden;
+          background: #0d1117;
         }
 
         .panel-title {
@@ -646,7 +749,7 @@ function Main() {
             width: 240px;
           }
           .right-panel {
-            width: 350px;
+            width: 450px;
           }
         }
 
@@ -655,10 +758,14 @@ function Main() {
             width: 200px;
           }
           .right-panel {
-            width: 300px;
+            width: 350px;
           }
           .project-info {
             display: none;
+          }
+          .panel-tab {
+            padding: 0 12px;
+            font-size: 12px;
           }
         }
       `}</style>
@@ -667,102 +774,3 @@ function Main() {
 }
 
 export default Main;
-
-
-
-
-
-
-
-// import React, { useState, useEffect } from "react";
-// import FileTree from "./components/FileTree";
-// import CodeEditor from "./components/CodeEditor";
-// import Terminal from "./components/Terminal";
-// import io from "socket.io-client";
-// import { useLocation } from 'react-router-dom';
-// import axios from 'axios';
-// import "./App.css";
-// import TerminalController from './components/TerminalController';
-// import Output from './components/Output';
-
-
-// const socket = io("http://localhost:5000");
-
-// function Main() {
-//   const [selectedFile, setSelectedFile] = useState(null);
-//   const [fileContent, setFileContent] = useState("");
-//   const [currentPath, setCurrentPath] = useState("");
-//   const location = useLocation();
-  
-//   const { language, projectName, isNew } = location.state || {};
-
-//   useEffect(() => {
-//     if (language && projectName) {
-//       initializeProject();
-//     }
-//   }, [language, projectName, isNew]);
-
-//   const initializeProject = async () => {
-//     try {
-
-//       await axios.post('http://localhost:5000/api/podcreation', {
-//           language,
-//           projectName
-//         });
-//       if (isNew) {
-//         // Create new project from template
-//         await axios.post('http://localhost:5000/api/project/create', {
-//           language,
-//           projectName
-//         });
-//       }
-      
-//       // Set the current path for the project
-//       const projectPath = `editedversion/${language.toLowerCase()}/${projectName}`;
-//       setCurrentPath(projectPath);
-//     } catch (error) {
-//       console.error('Error initializing project:', error);
-//       alert('Error initializing project');
-//     }
-//   };
-
-//   return (
-//     <div className="app-container" style={{ display: "flex", height: "100vh" }}>
-//       <div style={{ width: "20%", borderRight: "1px solid #ccc" }}>
-//         <div className="project-info" style={{ padding: "10px", borderBottom: "1px solid #ccc" }}>
-//           <h3>{projectName}</h3>
-//           <small>{language} Project</small>
-//         </div>
-//         <FileTree
-//           setSelectedFile={setSelectedFile}
-//           setFileContent={setFileContent}
-//           currentPath={currentPath}
-//           language={language}
-//           projectName={projectName}
-//         />
-//       </div>
-//       <div style={{ width: "50%", borderRight: "1px solid #ccc" }}>
-//         <CodeEditor
-//           selectedFile={selectedFile}
-//           fileContent={fileContent}
-//           setFileContent={setFileContent}
-//           currentPath={currentPath}
-//         />
-//       </div>
-//       <div style={{ width: "30%", display: "flex", flexDirection: "column", height: "100%" }}>
-//         <div style={{ flex: "0 0 50%", borderBottom: "1px solid #ccc", padding: "10px" }}>
-//           {/* Replace this with your actual new component */}
-//           <Output projectName={projectName}/>
-//         </div>
-//         <div style={{ flex: "1 1 50%", overflow: "hidden" }}>
-//           <TerminalController socket={socket} projectPath={currentPath} />
-//           {/* <TerminalCheck socket={socket}/> */}
-//         </div>
-//       </div>
-
-//     </div>
-//   );
-// }
-
-// export default Main;
-

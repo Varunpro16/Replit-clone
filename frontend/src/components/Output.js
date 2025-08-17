@@ -7,8 +7,9 @@ import {
   RefreshCw 
 } from "lucide-react";
 // Enhanced Output component
-const Output = ({ projectName , refreshKey}) => {
+const Output = ({ userId, projectName }) => {
   const [activeTab, setActiveTab] = useState('browser');
+  const [refreshKey, setRefreshKey] = useState(0);
   const INSTANCE_URI = `http://${projectName}.192.168.49.2.nip.io/`;
 
   return (
@@ -51,7 +52,7 @@ const Output = ({ projectName , refreshKey}) => {
               </div>
               <div className="browser-url">{INSTANCE_URI}</div>
               <button className="browser-refresh">
-                <RefreshCw size={14} />
+                  <RefreshCw size={14} onClick={() => setRefreshKey((prev) => !prev)}/>
               </button>
             </div>
             

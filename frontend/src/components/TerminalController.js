@@ -5,7 +5,7 @@ import {
   Square, 
   X 
 } from "lucide-react";
-const TerminalController = ({ socket, projectPath }) => {
+const TerminalController = ({ userId, socket, projectPath }) => {
 
   const [inputValue, setInputValue] = useState("");
 
